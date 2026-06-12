@@ -441,6 +441,10 @@ def two_proportion_ztest(
     """
     if n_a <= 0 or n_b <= 0:
         raise ValueError("Sample sizes must be positive.")
+    if not (0 <= success_a <= n_a):
+        raise ValueError("success_a must lie between 0 and n_a.")
+    if not (0 <= success_b <= n_b):
+        raise ValueError("success_b must lie between 0 and n_b.")
     p_a, p_b = success_a / n_a, success_b / n_b
     p_pool = (success_a + success_b) / (n_a + n_b)
     se = np.sqrt(p_pool * (1.0 - p_pool) * (1.0 / n_a + 1.0 / n_b))
@@ -502,6 +506,25 @@ def _positive_rate(y_pred: np.ndarray, mask: np.ndarray) -> float:
     return float(subset.mean()) if subset.size else float("nan")
 
 
+def _validate_fairness_inputs(
+    y_pred: np.ndarray, sensitive: np.ndarray, privileged: str, unprivileged: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Validate fairness helper inputs and return 1D arrays."""
+    y_pred = np.asarray(y_pred)
+    sensitive = np.asarray(sensitive)
+    if y_pred.ndim != 1 or sensitive.ndim != 1:
+        raise ValueError("y_pred and sensitive must be 1D arrays.")
+    if y_pred.shape[0] != sensitive.shape[0]:
+        raise ValueError("y_pred and sensitive must have the same length.")
+    if y_pred.size == 0:
+        raise ValueError("y_pred and sensitive cannot be empty.")
+    if not np.any(sensitive == privileged):
+        raise ValueError("No rows found for privileged group.")
+    if not np.any(sensitive == unprivileged):
+        raise ValueError("No rows found for unprivileged group.")
+    return y_pred, sensitive
+
+
 def demographic_parity_difference(
     y_pred: np.ndarray, sensitive: np.ndarray, privileged: str, unprivileged: str
 ) -> float:
@@ -510,8 +533,9 @@ def demographic_parity_difference(
     A value near zero indicates demographic parity. For a fraud flag, a large
     positive value means the unprivileged group is flagged disproportionately.
     """
-    y_pred = np.asarray(y_pred)
-    sensitive = np.asarray(sensitive)
+    y_pred, sensitive = _validate_fairness_inputs(
+        y_pred, sensitive, privileged, unprivileged
+    )
     return _positive_rate(y_pred, sensitive == unprivileged) - _positive_rate(
         y_pred, sensitive == privileged
     )
@@ -528,8 +552,9 @@ def disparate_impact_ratio(
     Raises:
         ZeroDivisionError: If the privileged-group positive rate is zero.
     """
-    y_pred = np.asarray(y_pred)
-    sensitive = np.asarray(sensitive)
+    y_pred, sensitive = _validate_fairness_inputs(
+        y_pred, sensitive, privileged, unprivileged
+    )
     rate_priv = _positive_rate(y_pred, sensitive == privileged)
     rate_unpriv = _positive_rate(y_pred, sensitive == unprivileged)
     if rate_priv == 0:
@@ -550,8 +575,13 @@ def equalized_odds_difference(
     unprivileged-minus-privileged gap for each.
     """
     y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
-    sensitive = np.asarray(sensitive)
+    y_pred, sensitive = _validate_fairness_inputs(
+        y_pred, sensitive, privileged, unprivileged
+    )
+    if y_true.ndim != 1:
+        raise ValueError("y_true must be a 1D array.")
+    if y_true.shape[0] != y_pred.shape[0]:
+        raise ValueError("y_true and y_pred must have the same length.")
 
     def _rates(mask: np.ndarray) -> tuple[float, float]:
         yt, yp = y_true[mask], y_pred[mask]
