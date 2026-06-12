@@ -156,6 +156,25 @@ def test_two_proportion_ztest_bad_sample_size() -> None:
         fu.two_proportion_ztest(1, 0, 1, 10)
 
 
+def test_two_proportion_ztest_invalid_success_counts() -> None:
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=11, n_a=10, success_b=1, n_b=10)
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=-1, n_a=10, success_b=1, n_b=10)
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=1, n_a=10, success_b=11, n_b=10)
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=1, n_a=10, success_b=-1, n_b=10)
+
+
+def test_two_proportion_ztest_accepts_inclusive_bounds() -> None:
+    # success_a/success_b of 0 or n are valid; pair with a non-degenerate
+    # success_b/success_a so p_pool isn't 0 or 1 (which raises separately
+    # for a zero standard error).
+    fu.two_proportion_ztest(success_a=0, n_a=10, success_b=5, n_b=10)
+    fu.two_proportion_ztest(success_a=10, n_a=10, success_b=5, n_b=10)
+
+
 def test_required_sample_size_is_positive_and_monotonic() -> None:
     big_effect = fu.required_sample_size_two_proportions(0.20, mde=0.05)
     small_effect = fu.required_sample_size_two_proportions(0.20, mde=0.01)
@@ -194,12 +213,61 @@ def test_demographic_parity_difference_sign() -> None:
     assert diff == pytest.approx(1.0)
 
 
+def test_demographic_parity_difference_missing_group_raises() -> None:
+    y_pred = np.array([1, 0, 1])
+    sensitive = np.array(["p", "p", "p"])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_missing_privileged_group_raises() -> None:
+    y_pred = np.array([1, 0, 1])
+    sensitive = np.array(["u", "u", "u"])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_empty_inputs_raise() -> None:
+    y_pred = np.array([])
+    sensitive = np.array([])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_same_group_raises() -> None:
+    y_pred = np.array([1, 0, 1, 0])
+    sensitive = np.array(["p", "p", "u", "u"])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="p")
+
+
+def test_disparate_impact_ratio_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError):
+        fu.disparate_impact_ratio(
+            y_pred=np.array([1, 0]),
+            sensitive=np.array(["p"]),
+            privileged="p",
+            unprivileged="u",
+        )
+
+
 def test_equalized_odds_difference_keys() -> None:
     y_true = np.array([1, 0, 1, 0, 1, 0])
     y_pred = np.array([1, 0, 1, 1, 0, 0])
     sensitive = np.array(["u", "u", "u", "p", "p", "p"])
     out = fu.equalized_odds_difference(y_true, y_pred, sensitive, "p", "u")
     assert set(out) == {"tpr_difference", "fpr_difference"}
+
+
+def test_equalized_odds_difference_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError):
+        fu.equalized_odds_difference(
+            y_true=np.array([1, 0]),
+            y_pred=np.array([1]),
+            sensitive=np.array(["u"]),
+            privileged="p",
+            unprivileged="u",
+        )
 
 
 # --------------------------------------------------------------------------- #
