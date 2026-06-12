@@ -510,6 +510,8 @@ def _validate_fairness_inputs(
     y_pred: np.ndarray, sensitive: np.ndarray, privileged: str, unprivileged: str
 ) -> tuple[np.ndarray, np.ndarray]:
     """Validate fairness helper inputs and return 1D arrays."""
+    if privileged == unprivileged:
+        raise ValueError("privileged and unprivileged groups must differ.")
     y_pred = np.asarray(y_pred)
     sensitive = np.asarray(sensitive)
     if y_pred.ndim != 1 or sensitive.ndim != 1:

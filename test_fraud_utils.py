@@ -161,6 +161,18 @@ def test_two_proportion_ztest_invalid_success_counts() -> None:
         fu.two_proportion_ztest(success_a=11, n_a=10, success_b=1, n_b=10)
     with pytest.raises(ValueError):
         fu.two_proportion_ztest(success_a=-1, n_a=10, success_b=1, n_b=10)
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=1, n_a=10, success_b=11, n_b=10)
+    with pytest.raises(ValueError):
+        fu.two_proportion_ztest(success_a=1, n_a=10, success_b=-1, n_b=10)
+
+
+def test_two_proportion_ztest_accepts_inclusive_bounds() -> None:
+    # success_a/success_b of 0 or n are valid; pair with a non-degenerate
+    # success_b/success_a so p_pool isn't 0 or 1 (which raises separately
+    # for a zero standard error).
+    fu.two_proportion_ztest(success_a=0, n_a=10, success_b=5, n_b=10)
+    fu.two_proportion_ztest(success_a=10, n_a=10, success_b=5, n_b=10)
 
 
 def test_required_sample_size_is_positive_and_monotonic() -> None:
@@ -206,6 +218,27 @@ def test_demographic_parity_difference_missing_group_raises() -> None:
     sensitive = np.array(["p", "p", "p"])
     with pytest.raises(ValueError):
         fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_missing_privileged_group_raises() -> None:
+    y_pred = np.array([1, 0, 1])
+    sensitive = np.array(["u", "u", "u"])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_empty_inputs_raise() -> None:
+    y_pred = np.array([])
+    sensitive = np.array([])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="u")
+
+
+def test_demographic_parity_difference_same_group_raises() -> None:
+    y_pred = np.array([1, 0, 1, 0])
+    sensitive = np.array(["p", "p", "u", "u"])
+    with pytest.raises(ValueError):
+        fu.demographic_parity_difference(y_pred, sensitive, privileged="p", unprivileged="p")
 
 
 def test_disparate_impact_ratio_length_mismatch_raises() -> None:
